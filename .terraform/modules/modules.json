@@ -1,0 +1,1 @@
+{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"dev_ecs","Source":"./modules/ecs-cluster","Dir":"modules/ecs-cluster"},{"Key":"dev_vpc","Source":"./modules/vpc","Dir":"modules/vpc"},{"Key":"prd_ecs","Source":"./modules/ecs-cluster","Dir":"modules/ecs-cluster"},{"Key":"prd_vpc","Source":"./modules/vpc","Dir":"modules/vpc"}]}
