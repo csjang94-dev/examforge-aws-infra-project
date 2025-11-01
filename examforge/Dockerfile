@@ -7,7 +7,7 @@ WORKDIR /app
 # 애플리케이션 파일 복사 (Docker 빌드 컨텍스트는 'examforge' 폴더입니다.)
 # run_apache.sh가 examforge 폴더 안에 있다고 가정합니다.
 COPY package.json ./
-COPY package-lock.json ./
+# COPY package-lock.json ./ <-- package-lock.json 파일을 찾지 못하는 문제로 인해 이 줄을 주석 처리합니다.
 
 # 의존성 설치
 RUN npm install
