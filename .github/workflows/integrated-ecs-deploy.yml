@@ -106,8 +106,8 @@ jobs:
             "requiresCompatibilities": ["FARGATE"],
             "cpu": "256",
             "memory": "512",
-            "executionRoleArn": "arn:aws:iam::140023399909:role/ecsTaskExecutionRole",
-            "taskRoleArn": "arn:aws:iam::140023399909:role/ecs-task-role",
+            "executionRoleArn": "arn:aws:iam::140023399909:role/examforge-dev-ecs-exec-role",
+            "taskRoleArn": "arn:aws:iam::140023399909:role/dev-ecs-task-role",
             "containerDefinitions": [
               {
                 "name": "app-container",
