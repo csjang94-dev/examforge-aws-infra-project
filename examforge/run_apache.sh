@@ -1,14 +1,14 @@
 #!/bin/bash
-# run_apache.sh
-# 컨테이너에서 Apache HTTP 서버 실행 스크립트
+set -e
 
-# Apache 환경 변수 설정 (필요시)
-APACHE_RUN_USER=www-data
-APACHE_RUN_GROUP=www-data
-APACHE_LOG_DIR=/var/log/apache2
+echo "🔧 Starting application on port ${PORT:-3000}..."
 
-# 로그 디렉토리 생성
-mkdir -p $APACHE_LOG_DIR
+# (선택) Node 앱을 실행하는 경우:
+# npm run start
 
-# Apache 시작 (포그라운드 실행)
-apache2ctl -D FOREGROUND
+# (선택) Express 앱이라면 보통 아래 명령어:
+node app.js
+
+# (참고) 만약 Apache를 함께 실행하고 싶다면:
+# service apache2 start
+# tail -f /var/log/apache2/access.log
