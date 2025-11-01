@@ -22,18 +22,22 @@ on:
           
   push:
     branches:
-      - dev # dev 브랜치 push 시 dev 환경으로 자동 배포
-      - prd # prd 브랜치 push 시 prod 환경으로 자동 배포
+      - dev
+      - prd
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: examforge/dev-repo # 🎯 단일 ECR Repository 이름
+  ECR_REPOSITORY: examforge/dev-repo 
   
   # 🎯 ECS Cluster 및 Service 이름 (환경별로 다름)
   DEV_ECS_CLUSTER: examforge-dev-cluster
   DEV_ECS_SERVICE: examforge-dev-service
   PRD_ECS_CLUSTER: examforge-prd-cluster
   PRD_ECS_SERVICE: examforge-prd-service
+  
+  # 🔑 Secrets 참조: Secrets는 Job 레벨에서 직접 참조하여 Step 레벨로 전달합니다.
+  DEV_ROLE_ARN: ${{ secrets.AWS_IAM_ROLE_ARN }}
+  PRD_ROLE_ARN: ${{ secrets.AWS_IAM_ROLE_ARN }}
 
 jobs:
   deploy:
@@ -43,7 +47,7 @@ jobs:
       id-token: write
       contents: read
     
-    # 🌟 수동 실행 시 선택된 환경, Push 시 브랜치에 따라 환경 결정
+    # 🌟 환경 변수 로직 변경: Job 레벨의 if/else 대신 run 스텝 내부에서 분기 처리
     environment: ${{ github.event_name == 'push' && 
                       (github.ref_name == 'prd' && 'production' || 'development') 
                       || github.event.inputs.target_environment }}
@@ -67,27 +71,30 @@ jobs:
           if [[ "$DEPLOY_ENV" == "production" ]]; then
             echo "ECS_CLUSTER=${{ env.PRD_ECS_CLUSTER }}" >> $GITHUB_ENV
             echo "ECS_SERVICE=${{ env.PRD_ECS_SERVICE }}" >> $GITHUB_ENV
-            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_PRD_ROLE_ARN }}" >> $GITHUB_ENV # Prod Role ARN
+            # 💡 [수정] Job 레벨 env에서 Secret 참조
+            echo "ROLE_ARN=${{ env.PRD_ROLE_ARN }}" >> $GITHUB_ENV 
           else
             echo "ECS_CLUSTER=${{ env.DEV_ECS_CLUSTER }}" >> $GITHUB_ENV
             echo "ECS_SERVICE=${{ env.DEV_ECS_SERVICE }}" >> $GITHUB_ENV
-            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_DEV_ROLE_ARN }}" >> $GITHUB_ENV # Dev Role ARN
+            # 💡 [수정] Job 레벨 env에서 Secret 참조
+            echo "ROLE_ARN=${{ env.DEV_ROLE_ARN }}" >> $GITHUB_ENV
           fi
           
           echo "DEPLOY_BRANCH=$DEPLOY_BRANCH" >> $GITHUB_ENV
           echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
-
-      # 2. 📥 Checkout repository (동적으로 결정된 브랜치 체크아웃)
+      # 2. 📥 Checkout repository (OIDC 안정성을 위해 fetch-depth: 0 추가)
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.DEPLOY_BRANCH }} 
+          ref: ${{ env.DEPLOY_BRANCH }}
+          fetch-depth: 0 # 🟢 [추가] OIDC 토큰 발급 및 Git 기록을 위해 전체 기록을 가져옵니다. 
           
       # 3. 🔐 Configure AWS credentials (OIDC)
       - name: 🔐 Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          # 🟢 ROLE_ARN 변수가 채워졌는지 확인합니다.
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
@@ -102,7 +109,6 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          # 🎯 Dockerfile이 examforge 폴더 안에 있다고 가정하고 빌드합니다.
           docker build -t $IMAGE_URI -f examforge/Dockerfile ./examforge 
           docker push $IMAGE_URI
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
@@ -111,14 +117,13 @@ jobs:
       - name: 📝 Deploy new Task Definition to ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: task-definition.json # 🎯 ECS Task Definition 템플릿 파일
+          task-definition: task-definition.json
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          # 🌟 단일 컨테이너 이미지를 업데이트합니다.
           image-definitions: |
             [
               {
-                "name": "examforge_container_name", # 🎯 Task Definition 내 컨테이너 이름으로 변경
+                "name": "examforge_container_name",
                 "imageUri": "${{ env.IMAGE_URI }}"
               }
             ]
