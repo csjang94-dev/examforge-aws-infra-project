@@ -98,49 +98,47 @@ jobs:
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
       - name: 📝 Generate Fargate Task Definition with ALB Health Check
-        run: |
-          cat > task-definition.json <<EOF
-          {
-            "family": "${{ env.ECS_CLUSTER }}-task",
-            "networkMode": "awsvpc",
-            "requiresCompatibilities": ["FARGATE"],
-            "cpu": "256",
-            "memory": "512",
-            "executionRoleArn": "arn:aws:iam::140023399909:role/examforge-dev-ecs-exec-role",
-            "taskRoleArn": "arn:aws:iam::140023399909:role/dev-ecs-task-role",
-            "containerDefinitions": [
-              {
-                "name": "app-container",
-                "image": "${{ env.IMAGE_URI }}",
-                "essential": true,
-                "portMappings": [
-                  {
-                    "containerPort": ${{ env.ALB_HEALTH_CHECK_PORT }},
-                    "protocol": "tcp"
-                  }
-                ],
-                
-                // 💡 [추가된 부분]: CloudWatch Logs 설정
-                "logConfiguration": {
-                  "logDriver": "awslogs",
-                  "options": {
-                    "awslogs-group": "/ecs/${{ env.ECS_CLUSTER }}-task", // 💡 클러스터 이름 기반 로그 그룹 생성
-                    "awslogs-region": "${{ env.AWS_REGION }}",
-                    "awslogs-stream-prefix": "ecs"
-                  }
-                },
+        run: |
+          cat > task-definition.json <<EOF
+          {
+            "family": "${{ env.ECS_CLUSTER }}-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512",
+            "executionRoleArn": "arn:aws:iam::140023399909:role/examforge-dev-ecs-exec-role",
+            "taskRoleArn": "arn:aws:iam::140023399909:role/dev-ecs-task-role",
+            "containerDefinitions": [
+              {
+                "name": "app-container",
+                "image": "${{ env.IMAGE_URI }}",
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": ${{ env.ALB_HEALTH_CHECK_PORT }},
+                    "protocol": "tcp"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/${{ env.ECS_CLUSTER }}-task",
+                    "awslogs-region": "${{ env.AWS_REGION }}",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                },
+                "healthCheck": {
+                  "command": ["CMD-SHELL", "curl -f http://localhost:${{ env.ALB_HEALTH_CHECK_PORT }}${{ env.ALB_HEALTH_CHECK_PATH }} || exit 1"],
+                  "interval": 30,
+                  "timeout": 5,
+                  "retries": 3,
+                  "startPeriod": 10
+                }
+              }
+            ]
+          }
+          EOF
 
-                "healthCheck": {
-                  "command": ["CMD-SHELL", "curl -f http://localhost:${{ env.ALB_HEALTH_CHECK_PORT }}${{ env.ALB_HEALTH_CHECK_PATH }} || exit 1"],
-                  "interval": 30,
-                  "timeout": 5,
-                  "retries": 3,
-                  "startPeriod": 10
-                }
-              }
-            ]
-          }
-          EOF
 
       - name: 🚀 Deploy to ECS Fargate
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
