@@ -122,10 +122,9 @@ jobs:
                 "logConfiguration": {
                   "logDriver": "awslogs",
                   "options": {
-                    "awslogs-group": "/ecs/${{ env.ECS_CLUSTER }}-task",
+                    "awslogs-group": "/ecs/"ecs_logs"",
                     "awslogs-region": "${{ env.AWS_REGION }}",
-                    "awslogs-stream-prefix": "ecs",
-                    "awslogs-create-group": "true"
+                    "awslogs-stream-prefix": "ecs"
                   }
                 },
                 "healthCheck": {
