@@ -27,7 +27,6 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REGISTRY: 140023399909.dkr.ecr.ap-northeast-2.amazonaws.com
   ECR_REPOSITORY: examforge/dev-repo
 
   # ECS Cluster/Service 이름
@@ -36,7 +35,7 @@ env:
   PRD_ECS_CLUSTER: examforge-prd-cluster
   PRD_ECS_SERVICE: examforge-prd-service
 
-  # 🔑 IAM Role ARN (OIDC용) 직접 입력
+  # OIDC용 IAM Role ARN
   DEV_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-dev-deployer-role
   PRD_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-prd-deployer-role
 
@@ -101,16 +100,33 @@ jobs:
           docker push $IMAGE_URI
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-      - name: 📝 Deploy new Task Definition to ECS Service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      - name: 📝 Generate ECS Task Definition
+        run: |
+          cat <<EOF > task-definition.json
+          {
+            "family": "examforge-task",
+            "containerDefinitions": [
+              {
+                "name": "examforge_container_name",
+                "image": "${{ env.IMAGE_URI }}",
+                "memory": 512,
+                "cpu": 256,
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 80,
+                    "hostPort": 80
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: 🚀 Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: task-definition.json
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          image-definitions: |
-            [
-              {
-                "name": "examforge_container_name",
-                "imageUri": "${{ env.IMAGE_URI }}"
-              }
-            ]
+          wait-for-service-stability: true
