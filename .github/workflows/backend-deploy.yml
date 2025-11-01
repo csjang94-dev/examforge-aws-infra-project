@@ -1,0 +1,26 @@
+# .github/workflows/backend-deploy.yml
+
+name: 'Backend API Deploy to ECS'
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+      - prd
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'prd' && 'production' || 'development' }}
+
+    steps:
+      # AWS 인증 (OIDC 사용) - 이전에 설정된 역할 사용
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.ref_name == 'prd' && secrets.PRD_AWS_ROLE_ARN || secrets.DEV_AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # (생략) 코드 체크아웃 및 Docker 빌드/푸시 (examforge 백엔드 폴더 기준)
+      # (생략) ECS Service 업데이트 (aws-actions/amazon-ecs-deploy 액션 사용)
