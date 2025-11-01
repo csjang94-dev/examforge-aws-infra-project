@@ -3,7 +3,6 @@ name: 🚀 Deploy Frontend to S3
 on:
   workflow_dispatch:
     inputs:
-      # 🌟 1. 사용자에게 배포할 브랜치를 선택하도록 요청
       target_branch:
         description: 'Select the branch to deploy'
         required: true
@@ -12,6 +11,17 @@ on:
         options:
           - dev
           - prd
+      
+      # 수동 실행 시 환경 선택을 강제하여 롤 분기를 명확하게 함
+      target_environment:
+        description: 'Select deployment target environment'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development # Dev 환경
+          - production # Prod 환경
+          
   push:
     branches:
       - main
@@ -19,8 +29,11 @@ on:
       - 'frontend/**'
 
 env:
+  # 모든 환경에서 동일한 리전 사용
   AWS_REGION: ap-northeast-2
-  S3_BUCKET: aws-quiz-static-content-ap-northeast-2-140023399909
+  # 기본 S3 버킷 (Dev용 또는 Fallback용) - 이 값은 아래 Job에서 덮어쓰여집니다.
+  S3_BUCKET_DEV: aws-quiz-static-content-ap-northeast-2-140023399909
+  S3_BUCKET_PRD: aws-quiz-static-content-ap-northeast-2-PROD-BUCKET # 🎯 Prod 버킷 이름으로 변경 필요
 
 jobs:
   deploy:
@@ -29,29 +42,71 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    
+    # 🌟 수동 실행 시 사용자가 선택한 환경을 사용하며, Prod 환경에 승인 규칙을 적용할 수 있습니다.
+    environment: ${{ github.event_name == 'push' && 'development' || github.event.inputs.target_environment }}
 
     steps:
+      
+      # 1. ⚙️ 환경 변수 및 브랜치 결정
+      - name: ⚙️ Set Dynamic Variables
+        id: set_vars
+        run: |
+          # 1. 트리거 타입에 따라 배포 대상 환경 및 브랜치를 결정
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # main 브랜치 푸시 시, dev 환경으로 배포 (일반적인 Dev/Staging flow)
+            DEPLOY_TARGET_BRANCH="main"
+            DEPLOY_ENV="dev"
+          else
+            # 수동 dispatch 실행 시, 사용자 입력값 사용
+            DEPLOY_TARGET_BRANCH="${{ github.event.inputs.target_branch }}"
+            DEPLOY_ENV="${{ github.event.inputs.target_environment }}"
+          fi
+          
+          # 2. 결정된 환경에 따라 BUCKET과 ROLE ARN 설정
+          if [[ "$DEPLOY_ENV" == "production" ]]; then
+            echo "ENV_BUCKET=${{ env.S3_BUCKET_PRD }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_PRD_ROLE_ARN }}" >> $GITHUB_ENV # Prod Role ARN
+          else
+            echo "ENV_BUCKET=${{ env.S3_BUCKET_DEV }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_DEV_ROLE_ARN }}" >> $GITHUB_ENV # Dev Role ARN
+          fi
+          
+          echo "DEPLOY_BRANCH=$DEPLOY_TARGET_BRANCH" >> $GITHUB_ENV
+
+
+      # 2. 📥 Checkout repository (동적으로 결정된 브랜치 체크아웃)
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        with:
+          # 🌟 수동 실행 시 사용자가 선택한 브랜치 코드를 가져오도록 ref를 지정
+          ref: ${{ env.DEPLOY_BRANCH }} 
 
+      # 3. ⚙️ Setup Node
       - name: ⚙️ Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: 📦 Install dependencies
+      # 4. 📦 Install dependencies
+      - name: 📦 Install dependencies (npm ci)
         working-directory: frontend
         run: npm ci
 
-      - name: 🏗️ Build frontend
+      # 5. 🏗️ Build frontend
+      - name: 🏗️ Build frontend (npm run build)
         working-directory: frontend
         run: npm run build
 
+      # 6. 🔐 Configure AWS credentials (동적 Role ARN 사용)
       - name: 🔐 Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_DEV_ROLE_ARN }}
+          # 🌟 동적으로 결정된 Role ARN 사용
+          role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 7. 🚀 Deploy to S3 (동적으로 결정된 버킷 사용)
       - name: 🚀 Deploy to S3
-        run: aws s3 sync frontend/dist s3://${{ env.S3_BUCKET }} --delete
+        # dist 폴더 이름은 프로젝트 환경에 따라 변경될 수 있습니다 (build, dist 등)
+        run: aws s3 sync frontend/dist s3://${{ env.ENV_BUCKET }} --delete
