@@ -1,26 +1,27 @@
-FROM public.ecr.aws/amazonlinux/amazonlinux:2023
+#!/bin/bash
+# Ubuntu용 Apache 실행 스크립트
 
-# Apache와 curl 설치 (업데이트 없이)
-RUN yum install -y httpd curl && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# 로그/런타임 디렉토리 생성
+mkdir -p /var/log/apache2 /var/run/apache2
 
-# 컨텐츠 복사
-COPY . /examforge/
+# 포트 3000으로 변경
+sed -i 's/Listen 80/Listen 3000/' /etc/apache2/ports.conf
+sed -i 's/<VirtualHost \*:80>/<VirtualHost *:3000>/' /etc/apache2/sites-available/000-default.conf
 
-# 스크립트 복사 및 실행 권한
-COPY run_apache.sh /run_apache.sh
-RUN chmod +x /run_apache.sh
+# DocumentRoot를 /var/www/html로 유지 (Ubuntu 기본값)
+# 이미 설정되어 있으므로 추가 변경 불필요
 
-# 작업 디렉토리
-WORKDIR /var/www/html
+# examforge 컨텐츠를 Apache 루트로 복사
+if [ -d "/examforge" ]; then
+    cp -r /examforge/* /var/www/html/ 2>/dev/null || true
+fi
 
-# 포트 노출
-EXPOSE 3000
+# 권한 설정
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
 
-# 헬스체크
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
+# Apache 설정 테스트
+apache2ctl configtest
 
-# 엔트리포인트
-CMD ["/run_apache.sh"]
+# Apache 시작 (포그라운드 실행)
+exec apache2ctl -D FOREGROUND
