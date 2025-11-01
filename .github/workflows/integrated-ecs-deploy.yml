@@ -110,7 +110,7 @@ jobs:
             "taskRoleArn": "arn:aws:iam::140023399909:role/ecs-task-role",
             "containerDefinitions": [
               {
-                "name": "examforge_container_name",
+                "name": "app-container",
                 "image": "${{ env.IMAGE_URI }}",
                 "essential": true,
                 "portMappings": [
