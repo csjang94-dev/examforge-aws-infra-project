@@ -116,7 +116,7 @@ jobs:
                 "portMappings": [
                   {
                     "containerPort": ${{ env.ALB_HEALTH_CHECK_PORT }},
-                    "protocol": "tcp"
+                    "protocol": "3000"
                   }
                 ],
                 "logConfiguration": {
