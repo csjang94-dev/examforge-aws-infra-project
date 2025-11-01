@@ -36,8 +36,8 @@ env:
   PRD_ECS_SERVICE: examforge-prd-service
   
   # 🔑 Secrets 참조: Secrets는 Job 레벨에서 직접 참조하여 Step 레벨로 전달합니다.
-  DEV_ROLE_ARN: ${{ secrets.AWS_IAM_ROLE_ARN }}
-  PRD_ROLE_ARN: ${{ secrets.AWS_IAM_ROLE_ARN }}
+  DEV_ROLE_ARN: ${{ secrets.DEV_ROLE_ARN }}
+  PRD_ROLE_ARN: ${{ secrets.PRD_ROLE_ARN }}
 
 jobs:
   deploy:
