@@ -122,7 +122,7 @@ jobs:
                 "logConfiguration": {
                   "logDriver": "awslogs",
                   "options": {
-                    "awslogs-group": "/ecs/"ecs_logs"",
+                    "awslogs-group": "/ecs/ecs_logs",
                     "awslogs-region": "${{ env.AWS_REGION }}",
                     "awslogs-stream-prefix": "ecs"
                   }
