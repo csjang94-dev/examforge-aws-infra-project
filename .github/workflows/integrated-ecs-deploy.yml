@@ -1,0 +1,124 @@
+name: ⚙️ Integrated ECS Fargate Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Select the branch to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prd
+      target_environment:
+        description: 'Target deployment environment'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+          
+  push:
+    branches:
+      - dev # dev 브랜치 push 시 dev 환경으로 자동 배포
+      - prd # prd 브랜치 push 시 prod 환경으로 자동 배포
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: examforge-integrated-repo # 🎯 단일 ECR Repository 이름
+  
+  # 🎯 ECS Cluster 및 Service 이름 (환경별로 다름)
+  DEV_ECS_CLUSTER: examforge-dev-cluster
+  DEV_ECS_SERVICE: examforge-dev-service
+  PRD_ECS_CLUSTER: examforge-prd-cluster
+  PRD_ECS_SERVICE: examforge-prd-service
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+    
+    # 🌟 수동 실행 시 선택된 환경, Push 시 브랜치에 따라 환경 결정
+    environment: ${{ github.event_name == 'push' && 
+                      (github.ref_name == 'prd' && 'production' || 'development') 
+                      || github.event.inputs.target_environment }}
+
+    steps:
+      
+      # 1. ⚙️ 환경 변수 및 브랜치 결정
+      - name: ⚙️ Set Dynamic Variables
+        id: set_vars
+        run: |
+          # 1. 배포 대상 환경 및 브랜치를 결정
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            DEPLOY_BRANCH="${{ github.ref_name }}"
+            DEPLOY_ENV="${{ github.ref_name == 'prd' && 'production' || 'development' }}"
+          else
+            DEPLOY_BRANCH="${{ github.event.inputs.target_branch }}"
+            DEPLOY_ENV="${{ github.event.inputs.target_environment }}"
+          fi
+          
+          # 2. 결정된 환경에 따라 ECS 리소스 및 ROLE ARN 설정
+          if [[ "$DEPLOY_ENV" == "production" ]]; then
+            echo "ECS_CLUSTER=${{ env.PRD_ECS_CLUSTER }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ env.PRD_ECS_SERVICE }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_PRD_ROLE_ARN }}" >> $GITHUB_ENV # Prod Role ARN
+          else
+            echo "ECS_CLUSTER=${{ env.DEV_ECS_CLUSTER }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ env.DEV_ECS_SERVICE }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_DEV_ROLE_ARN }}" >> $GITHUB_ENV # Dev Role ARN
+          fi
+          
+          echo "DEPLOY_BRANCH=$DEPLOY_BRANCH" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+
+      # 2. 📥 Checkout repository (동적으로 결정된 브랜치 체크아웃)
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_BRANCH }} 
+          
+      # 3. 🔐 Configure AWS credentials (OIDC)
+      - name: 🔐 Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 4. 🔑 Login to Amazon ECR
+      - name: 🔑 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        
+      # 5. 🏗️ Build, Tag, and Push Docker Image
+      - name: 🏗️ Build, Tag, and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          # 🎯 Dockerfile이 examforge 폴더 안에 있다고 가정하고 빌드합니다.
+          docker build -t $IMAGE_URI -f examforge/Dockerfile ./examforge 
+          docker push $IMAGE_URI
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          
+      # 6. 📝 Deploy to ECS Service
+      - name: 📝 Deploy new Task Definition to ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: task-definition.json # 🎯 ECS Task Definition 템플릿 파일
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          # 🌟 단일 컨테이너 이미지를 업데이트합니다.
+          image-definitions: |
+            [
+              {
+                "name": "examforge_container_name", # 🎯 Task Definition 내 컨테이너 이름으로 변경
+                "imageUri": "${{ env.IMAGE_URI }}"
+              }
+            ]
