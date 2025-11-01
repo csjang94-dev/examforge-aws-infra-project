@@ -2,6 +2,16 @@ name: 🐳 Deploy Backend to ECS
 
 on:
   workflow_dispatch:
+    inputs:
+      # 🌟 1. 사용자에게 배포할 브랜치를 선택하도록 요청
+      target_branch:
+        description: 'Select the branch to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prd
   push:
     branches:
       - main
