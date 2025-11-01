@@ -36,8 +36,8 @@ env:
   PRD_ECS_SERVICE: examforge-prd-service
   
   # 🔑 Secrets 참조: Secrets는 Job 레벨에서 직접 참조하여 Step 레벨로 전달합니다.
-  DEV_ROLE_ARN: ${{ secrets.arn:aws:iam::140023399909:role/github-actions-dev-deployer-role }}
-  PRD_ROLE_ARN: ${{ secrets.arn:aws:iam::140023399909:role/github-actions-prd-deployer-role }}
+  DEV_ROLE_ARN: ${{ secrets.DEV_ROLE_ARN }}
+  PRD_ROLE_ARN: ${{ secrets.PRD_ROLE_ARN }}
 
 jobs:
   deploy:
