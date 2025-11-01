@@ -125,6 +125,7 @@ jobs:
                     "awslogs-group": "/ecs/${{ env.ECS_CLUSTER }}-task",
                     "awslogs-region": "${{ env.AWS_REGION }}",
                     "awslogs-stream-prefix": "ecs"
+                    "awslogs-create-group": "true"
                   }
                 },
                 "healthCheck": {
