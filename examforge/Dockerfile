@@ -20,12 +20,12 @@ COPY . /app
 # ---------------------------
 # run_apache.sh 생성 및 실행 권한
 # ---------------------------
-RUN echo '#!/bin/bash' > /app/run_apache.sh && \
-    echo 'mkdir -p /var/run/httpd /var/lock/httpd' >> /app/run_apache.sh && \
-    echo 'sed -i "s/Listen 80/Listen 3000/" /etc/httpd/conf/httpd.conf' >> /app/run_apache.sh && \
-    echo 'sed -i "s/<VirtualHost \\*:80>/<VirtualHost \\*:3000>/" /etc/httpd/conf.d/*.conf' >> /app/run_apache.sh && \
-    echo '/usr/sbin/httpd -D FOREGROUND' >> /app/run_apache.sh && \
-    chmod +x /app/run_apache.sh
+RUN echo '#!/bin/bash' > ./run_apache.sh && \
+    echo 'mkdir -p /var/run/httpd /var/lock/httpd' >> ./run_apache.sh && \
+    echo 'sed -i "s/Listen 80/Listen 3000/" /etc/httpd/conf/httpd.conf' >> ./run_apache.sh && \
+    echo 'sed -i "s/<VirtualHost \\*:80>/<VirtualHost \\*:3000>/" /etc/httpd/conf.d/*.conf' >> ./run_apache.sh && \
+    echo '/usr/sbin/httpd -D FOREGROUND' >> ./run_apache.sh && \
+    chmod +x ./run_apache.sh
 
 # ---------------------------
 # 컨테이너 포트
@@ -35,4 +35,4 @@ EXPOSE 3000
 # ---------------------------
 # Fargate 실행 시 엔트리포인트
 # ---------------------------
-CMD ["/app/run_apache.sh"]
+CMD ["./run_apache.sh"]
