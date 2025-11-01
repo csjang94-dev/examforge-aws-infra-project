@@ -4,16 +4,16 @@ FROM node:lts-slim
 # 작업 디렉터리 설정
 WORKDIR /app
 
-# 애플리케이션 파일 복사 (Docker 빌드 컨텍스트에 'examforge' 폴더가 있다고 가정)
+# 애플리케이션 파일 복사 (Docker 빌드 컨텍스트는 'examforge' 폴더입니다.)
 # run_apache.sh가 examforge 폴더 안에 있다고 가정합니다.
-COPY examforge/package.json ./
-COPY examforge/package-lock.json ./
+COPY package.json ./
+COPY package-lock.json ./
 
 # 의존성 설치
 RUN npm install
 
 # 나머지 애플리케이션 코드 및 스크립트 파일 복사
-COPY examforge/ ./
+COPY ./ ./
 
 # 💡 [수정] run_apache.sh에 실행 권한을 부여합니다.
 RUN chmod +x /app/run_apache.sh
