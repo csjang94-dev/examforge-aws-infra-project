@@ -27,7 +27,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: examforge-integrated-repo # 🎯 단일 ECR Repository 이름
+  ECR_REPOSITORY: examforge/dev-repo # 🎯 단일 ECR Repository 이름
   
   # 🎯 ECS Cluster 및 Service 이름 (환경별로 다름)
   DEV_ECS_CLUSTER: examforge-dev-cluster
