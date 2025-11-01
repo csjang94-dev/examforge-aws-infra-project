@@ -1,33 +1,21 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux:latest
 
-# ---------------------------
 # Apache 설치
-# ---------------------------
 RUN yum update -y && \
     yum install -y httpd bash && \
     yum clean all
 
-# ---------------------------
 # 작업 디렉터리
-# ---------------------------
-WORKDIR /app
+WORKDIR /
 
-# ---------------------------
-# 앱 파일 + run_apache.sh 복사
-# ---------------------------
-COPY . /app
+# 컨텐츠 + run_apache.sh 복사
+COPY . /
 
-# ---------------------------
 # 실행 권한 부여
-# ---------------------------
-RUN chmod +x /app/run_apache.sh
+RUN chmod +x /run_apache.sh
 
-# ---------------------------
 # 컨테이너 포트
-# ---------------------------
 EXPOSE 3000
 
-# ---------------------------
-# Fargate 실행 시 엔트리포인트
-# ---------------------------
+# 엔트리포인트
 CMD ["./run_apache.sh"]
