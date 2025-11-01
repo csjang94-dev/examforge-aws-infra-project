@@ -3,6 +3,7 @@
 name: 'Backend API Deploy to ECS'
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - dev
