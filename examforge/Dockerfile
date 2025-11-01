@@ -1,18 +1,26 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux:latest
 
-# Apache 설치
+# Apache와 curl 설치 (헬스체크용)
 RUN yum update -y && \
-    yum install -y httpd bash && \
+    yum install -y httpd curl && \
     yum clean all
 
-# 컨텐츠를 그대로 복사 (examforge 폴더 포함)
-COPY . /
+# 컨텐츠 복사
+COPY . /examforge/
 
-# run_apache.sh 실행 권한 부여
+# 스크립트 복사 및 실행 권한
+COPY run_apache.sh /run_apache.sh
 RUN chmod +x /run_apache.sh
 
-# 컨테이너 포트
+# 작업 디렉토리
+WORKDIR /var/www/html
+
+# 포트 노출
 EXPOSE 3000
+
+# 헬스체크 (선택사항 - ECS 헬스체크와 중복)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/ || exit 1
 
 # 엔트리포인트
 CMD ["/run_apache.sh"]
