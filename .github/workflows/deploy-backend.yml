@@ -1,0 +1,68 @@
+name: 🐳 Deploy Backend to ECS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPO: examforge/dev-repo
+  IMAGE_TAG: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔐 Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🐳 Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🔨 Build, Tag, and Push Docker image
+        working-directory: backend
+        run: |
+          docker build -t $ECR_REPO:$IMAGE_TAG .
+          docker tag $ECR_REPO:$IMAGE_TAG ${{ steps.ecr.outputs.registry }}/${ECR_REPO}:$IMAGE_TAG
+          docker push ${{ steps.ecr.outputs.registry }}/${ECR_REPO}:$IMAGE_TAG
+
+      - name: 🧠 Terraform Apply (ECS Service Update)
+        working-directory: infra
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve \
+            -var "environment=dev" \
+            -var "project_name=examforge" \
+            -var "app_image_tag=$IMAGE_TAG"
+
+      - name: ✅ ALB Health Check
+        run: |
+          ALB_DNS="${{ steps.terraform.outputs.dev_alb_dns_name }}"
+          echo "Checking ALB at $ALB_DNS ..."
+          for i in {1..12}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$ALB_DNS)
+            if [[ "$STATUS" == "200" ]]; then
+              echo "ALB is healthy!"
+              exit 0
+            fi
+            echo "Waiting for ALB... ($i/12)"
+            sleep 10
+          done
+          echo "ALB did not become healthy in 2 minutes"
+          exit 1
