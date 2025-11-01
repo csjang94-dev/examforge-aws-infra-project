@@ -1,0 +1,62 @@
+/* 기본 레이아웃 */
+    /* body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 0;
+      background: #f8f9fa;
+    }
+    nav {
+      background: #232f3e;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+    }
+    nav .logo {
+      font-weight: bold;
+      font-size: 18px;
+    }
+    nav ul {
+      list-style: none;
+      display: flex;
+      margin: 0;
+      padding: 0;
+    }
+    nav ul li {
+      margin-left: 20px;
+    }
+    nav ul li a {
+      color: white;
+      text-decoration: none;
+    }
+    nav ul li a:hover {
+      text-decoration: underline;
+    } */
+
+    /* 문제 출력 구역 */
+    section {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    .question {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .question h2 {
+      margin-top: 0;
+    }
+    .choice {
+      margin: 6px 0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: #f1f3f5;
+    }
+    .answer {
+      margin-top: 8px;
+      color: #0d6efd;
+      font-weight: bold;
+    }
