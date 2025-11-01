@@ -1,25 +1,24 @@
 #!/bin/bash
-# 컨테이너에서 Apache HTTP 서버 실행 스크립트
+# Ubuntu용 Apache 실행 스크립트
 
-# 로그/락 디렉토리 생성
-mkdir -p /var/log/httpd /var/run/httpd /var/lock/httpd
+# 로그/런타임 디렉토리 생성
+mkdir -p /var/log/apache2 /var/run/apache2
 
-# Apache 포트 3000으로 변경
-sed -i 's/Listen 80/Listen 3000/' /etc/httpd/conf/httpd.conf
-
-# DocumentRoot를 /var/www/html로 설정 (표준 위치)
-sed -i 's#DocumentRoot "/var/www"#DocumentRoot "/var/www/html"#' /etc/httpd/conf/httpd.conf
-sed -i 's#<Directory "/var/www">#<Directory "/var/www/html">#' /etc/httpd/conf/httpd.conf
+# 포트 3000으로 변경
+sed -i 's/Listen 80/Listen 3000/' /etc/apache2/ports.conf
+sed -i 's/<VirtualHost \*:80>/<VirtualHost *:3000>/' /etc/apache2/sites-available/000-default.conf
 
 # examforge 컨텐츠를 Apache 루트로 복사
-cp -r /examforge/* /var/www/html/ 2>/dev/null || true
+if [ -d "/examforge" ]; then
+    cp -r /examforge/* /var/www/html/ 2>/dev/null || true
+fi
 
 # 권한 설정
-chown -R apache:apache /var/www/html
+chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html
 
 # Apache 설정 테스트
-httpd -t
+apache2ctl configtest
 
 # Apache 시작 (포그라운드 실행)
-exec /usr/sbin/httpd -D FOREGROUND
+exec apache2ctl -D FOREGROUND
