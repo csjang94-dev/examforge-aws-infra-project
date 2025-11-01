@@ -1,8 +1,7 @@
-FROM public.ecr.aws/amazonlinux/amazonlinux:latest
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
-# Apache와 curl 설치 (헬스체크용) - 충돌 해결
-RUN yum update -y --allowerasing && \
-    yum install -y httpd curl && \
+# Apache와 curl 설치 (업데이트 없이)
+RUN yum install -y httpd curl && \
     yum clean all && \
     rm -rf /var/cache/yum
 
