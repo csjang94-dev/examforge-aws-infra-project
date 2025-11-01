@@ -27,6 +27,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 140023399909.dkr.ecr.ap-northeast-2.amazonaws.com
   ECR_REPOSITORY: examforge/dev-repo
 
   # ECS Cluster/Service 이름
