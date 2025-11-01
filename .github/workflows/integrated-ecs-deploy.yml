@@ -29,22 +29,28 @@ env:
   AWS_REGION: ap-northeast-2
   ECR_REPOSITORY: examforge/dev-repo
 
-  # 🎯 ECS Cluster 및 Service 이름 (환경별로 다름)
+  # ECS Cluster/Service 이름
   DEV_ECS_CLUSTER: examforge-dev-cluster
   DEV_ECS_SERVICE: examforge-dev-service
   PRD_ECS_CLUSTER: examforge-prd-cluster
   PRD_ECS_SERVICE: examforge-prd-service
 
+  # 🔑 IAM Role ARN (OIDC용) 직접 입력
+  DEV_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-dev-deployer-role
+  PRD_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-prd-deployer-role
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    permissions:
+      id-token: write   # ✅ OIDC 필수
+      contents: read
+    
     environment: ${{ github.event_name == 'push' && 
                       (github.ref_name == 'prd' && 'production' || 'development') 
                       || github.event.inputs.target_environment }}
 
     steps:
-      # 1. ⚙️ 환경 변수 및 브랜치 결정
       - name: ⚙️ Set Dynamic Variables
         id: set_vars
         run: |
@@ -55,49 +61,45 @@ jobs:
             DEPLOY_BRANCH="${{ github.event.inputs.target_branch }}"
             DEPLOY_ENV="${{ github.event.inputs.target_environment }}"
           fi
-          
+
           if [[ "$DEPLOY_ENV" == "production" ]]; then
             echo "ECS_CLUSTER=${{ env.PRD_ECS_CLUSTER }}" >> $GITHUB_ENV
             echo "ECS_SERVICE=${{ env.PRD_ECS_SERVICE }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ env.PRD_ROLE_ARN }}" >> $GITHUB_ENV
           else
             echo "ECS_CLUSTER=${{ env.DEV_ECS_CLUSTER }}" >> $GITHUB_ENV
             echo "ECS_SERVICE=${{ env.DEV_ECS_SERVICE }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ env.DEV_ROLE_ARN }}" >> $GITHUB_ENV
           fi
-          
+
           echo "DEPLOY_BRANCH=$DEPLOY_BRANCH" >> $GITHUB_ENV
           echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
-      # 2. 📥 Checkout repository
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_BRANCH }}
           fetch-depth: 0
 
-      # 3. 🔐 Configure AWS credentials (Access Key 방식)
-      - name: 🔐 Configure AWS credentials
+      - name: 🔐 Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 4. 🔑 Login to Amazon ECR
       - name: 🔑 Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-        
-      # 5. 🏗️ Build, Tag, and Push Docker Image
+
       - name: 🏗️ Build, Tag, and Push Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker build -t $IMAGE_URI -f dev/Dockerfile ./dev
+          docker build -t $IMAGE_URI -f examforge/Dockerfile ./examforge
           docker push $IMAGE_URI
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          
-      # 6. 📝 Deploy to ECS Service
+
       - name: 📝 Deploy new Task Definition to ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
