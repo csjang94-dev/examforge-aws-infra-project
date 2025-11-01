@@ -1,0 +1,50 @@
+# .github/workflows/frontend-deploy.yml
+
+name: 'Frontend Deploy to S3'
+
+on:
+  push:
+    branches:
+      - dev
+      - prd
+
+jobs:
+  deploy-s3:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'prd' && 'production' || 'development' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. AWS 인증 (OIDC 사용)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Secrets에 저장된 환경별 ARN 사용
+          role-to-assume: ${{ github.ref_name == 'prd' && secrets.PRD_AWS_ROLE_ARN || secrets.DEV_AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 2. (선택) 프론트엔드 빌드 (예시: React, Vue, Angular)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # 실제 프로젝트 버전에 맞게 수정
+          cache: 'npm'
+          cache-dependency-path: './examforge/frontend/package-lock.json'
+
+      - name: Install Dependencies and Build
+        run: |
+          cd ./examforge/frontend # 프로젝트 구조에 맞게 폴더 이동
+          npm install
+          npm run build # build 명령을 실행하여 정적 파일을 생성
+
+      # 3. S3에 파일 동기화
+      - name: Sync Frontend Files to S3
+        run: |
+          # 환경 변수 기반으로 동기화할 버킷 이름 결정
+          BUCKET_NAME="examforge-frontend-${{ github.ref_name == 'prd' && 'prd' || 'dev' }}"
+          
+          aws s3 sync ./examforge/frontend/build s3://${BUCKET_NAME} \
+            --acl public-read \
+            --delete # S3 버킷에 없는 파일은 삭제
