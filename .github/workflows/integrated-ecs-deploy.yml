@@ -41,7 +41,7 @@ env:
 
   # 🔹 ALB 헬스체크 정보
   ALB_HEALTH_CHECK_PATH: "/health"
-  ALB_HEALTH_CHECK_PORT: 80
+  ALB_HEALTH_CHECK_PORT: 3000
 
 jobs:
   deploy:
