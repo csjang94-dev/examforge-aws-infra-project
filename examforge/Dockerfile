@@ -4,7 +4,7 @@ FROM public.ecr.aws/amazonlinux/amazonlinux:latest
 # Apache 설치
 # ---------------------------
 RUN yum update -y && \
-    yum install -y httpd && \
+    yum install -y httpd bash && \
     yum clean all
 
 # ---------------------------
@@ -13,19 +13,14 @@ RUN yum update -y && \
 WORKDIR /app
 
 # ---------------------------
-# 앱 파일 복사
+# 앱 파일 + run_apache.sh 복사
 # ---------------------------
 COPY . /app
 
 # ---------------------------
-# run_apache.sh 생성 및 실행 권한
+# 실행 권한 부여
 # ---------------------------
-RUN echo '#!/bin/bash' > ./run_apache.sh && \
-    echo 'mkdir -p /var/run/httpd /var/lock/httpd' >> ./run_apache.sh && \
-    echo 'sed -i "s/Listen 80/Listen 3000/" /etc/httpd/conf/httpd.conf' >> ./run_apache.sh && \
-    echo 'sed -i "s/<VirtualHost \\*:80>/<VirtualHost \\*:3000>/" /etc/httpd/conf.d/*.conf' >> ./run_apache.sh && \
-    echo '/usr/sbin/httpd -D FOREGROUND' >> ./run_apache.sh && \
-    chmod +x ./run_apache.sh
+RUN chmod +x /app/run_apache.sh
 
 # ---------------------------
 # 컨테이너 포트
