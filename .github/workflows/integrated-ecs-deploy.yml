@@ -19,7 +19,6 @@ on:
         options:
           - development
           - production
-          
   push:
     branches:
       - dev
@@ -27,6 +26,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 140023399909.dkr.ecr.ap-northeast-2.amazonaws.com
   ECR_REPOSITORY: examforge/dev-repo
 
   # ECS Cluster/Service 이름
@@ -35,20 +35,20 @@ env:
   PRD_ECS_CLUSTER: examforge-prd-cluster
   PRD_ECS_SERVICE: examforge-prd-service
 
-  # OIDC용 IAM Role ARN
+  # 🔑 IAM Role ARN (OIDC용)
   DEV_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-dev-deployer-role
   PRD_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-prd-deployer-role
+
+  # 🔹 ALB 헬스체크 정보
+  ALB_HEALTH_CHECK_PATH: "/health"
+  ALB_HEALTH_CHECK_PORT: 80
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write   # ✅ OIDC 필수
+      id-token: write
       contents: read
-    
-    environment: ${{ github.event_name == 'push' && 
-                      (github.ref_name == 'prd' && 'production' || 'development') 
-                      || github.event.inputs.target_environment }}
 
     steps:
       - name: ⚙️ Set Dynamic Variables
@@ -81,52 +81,55 @@ jobs:
           ref: ${{ env.DEPLOY_BRANCH }}
           fetch-depth: 0
 
-      - name: 🔐 Configure AWS credentials (OIDC)
+      - name: 🔐 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: 🔑 Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: 🏗️ Build, Tag, and Push Docker Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: 🏗️ Build, Tag, Push Docker Image
         run: |
-          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          IMAGE_URI="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
           docker build -t $IMAGE_URI -f examforge/Dockerfile ./examforge
           docker push $IMAGE_URI
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-      - name: 📝 Generate Fargate ECS Task Definition
-  run: |
-    cat <<EOF > task-definition.json
-    {
-      "family": "examforge-task",
-      "networkMode": "awsvpc",
-      "requiresCompatibilities": ["FARGATE"],
-      "cpu": "256",
-      "memory": "512",
-      "containerDefinitions": [
-        {
-          "name": "examforge_container_name",
-          "image": "${{ env.IMAGE_URI }}",
-          "essential": true,
-          "portMappings": [
-            {
-              "containerPort": 80,
-              "protocol": "tcp"
-            }
-          ]
-        }
-      ]
-    }
-    EOF
+      - name: 📝 Generate Fargate Task Definition with ALB Health Check
+        run: |
+          cat > task-definition.json <<EOF
+          {
+            "family": "${{ env.ECS_CLUSTER }}-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512",
+            "containerDefinitions": [
+              {
+                "name": "examforge_container_name",
+                "image": "${{ env.IMAGE_URI }}",
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": ${{ env.ALB_HEALTH_CHECK_PORT }},
+                    "protocol": "tcp"
+                  }
+                ],
+                "healthCheck": {
+                  "command": ["CMD-SHELL", "curl -f http://localhost:${{ env.ALB_HEALTH_CHECK_PORT }}${{ env.ALB_HEALTH_CHECK_PATH }} || exit 1"],
+                  "interval": 30,
+                  "timeout": 5,
+                  "retries": 3,
+                  "startPeriod": 10
+                }
+              }
+            ]
+          }
+          EOF
 
-
-      - name: 🚀 Deploy to ECS
+      - name: 🚀 Deploy to ECS Fargate
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: task-definition.json
