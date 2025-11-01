@@ -1,4 +1,4 @@
-name: 🚀 Deploy Frontend to S3
+name: ⚙️ Integrated ECS Fargate Deployment
 
 on:
   workflow_dispatch:
@@ -11,102 +11,146 @@ on:
         options:
           - dev
           - prd
-      
-      # 수동 실행 시 환경 선택을 강제하여 롤 분기를 명확하게 함
       target_environment:
-        description: 'Select deployment target environment'
+        description: 'Target deployment environment'
         required: true
         default: 'development'
         type: choice
         options:
-          - development # Dev 환경
-          - production # Prod 환경
-          
+          - development
+          - production
   push:
     branches:
-      - main
-    paths:
-      - 'frontend/**'
+      - dev
+      - prd
 
 env:
-  # 모든 환경에서 동일한 리전 사용
   AWS_REGION: ap-northeast-2
-  # 기본 S3 버킷 (Dev용 또는 Fallback용) - 이 값은 아래 Job에서 덮어쓰여집니다.
-  S3_BUCKET_DEV: aws-quiz-static-content-ap-northeast-2-140023399909
-  S3_BUCKET_PRD: aws-quiz-static-content-ap-northeast-2-PROD-BUCKET # 🎯 Prod 버킷 이름으로 변경 필요
+  ECR_REGISTRY: 140023399909.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REPOSITORY: examforge/dev-repo
+
+  # ECS Cluster/Service 이름
+  DEV_ECS_CLUSTER: examforge-dev-cluster
+  DEV_ECS_SERVICE: examforge-dev-service
+  PRD_ECS_CLUSTER: examforge-prd-cluster
+  PRD_ECS_SERVICE: examforge-prd-service
+
+  # 🔑 IAM Role ARN (OIDC용)
+  DEV_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-dev-deployer-role
+  PRD_ROLE_ARN: arn:aws:iam::140023399909:role/github-actions-prd-deployer-role
+
+  # 🔹 ALB 헬스체크 정보
+  ALB_HEALTH_CHECK_PATH: "/"
+  ALB_HEALTH_CHECK_PORT: 3000
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     permissions:
       id-token: write
       contents: read
-    
-    # 🌟 수동 실행 시 사용자가 선택한 환경을 사용하며, Prod 환경에 승인 규칙을 적용할 수 있습니다.
-    environment: ${{ github.event_name == 'push' && 'development' || github.event.inputs.target_environment }}
 
     steps:
-      
-      # 1. ⚙️ 환경 변수 및 브랜치 결정
       - name: ⚙️ Set Dynamic Variables
         id: set_vars
         run: |
-          # 1. 트리거 타입에 따라 배포 대상 환경 및 브랜치를 결정
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            # main 브랜치 푸시 시, dev 환경으로 배포 (일반적인 Dev/Staging flow)
-            DEPLOY_TARGET_BRANCH="main"
-            DEPLOY_ENV="dev"
+            DEPLOY_BRANCH="${{ github.ref_name }}"
+            DEPLOY_ENV="${{ github.ref_name == 'prd' && 'production' || 'development' }}"
           else
-            # 수동 dispatch 실행 시, 사용자 입력값 사용
-            DEPLOY_TARGET_BRANCH="${{ github.event.inputs.target_branch }}"
+            DEPLOY_BRANCH="${{ github.event.inputs.target_branch }}"
             DEPLOY_ENV="${{ github.event.inputs.target_environment }}"
           fi
-          
-          # 2. 결정된 환경에 따라 BUCKET과 ROLE ARN 설정
+
           if [[ "$DEPLOY_ENV" == "production" ]]; then
-            echo "ENV_BUCKET=${{ env.S3_BUCKET_PRD }}" >> $GITHUB_ENV
-            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_PRD_ROLE_ARN }}" >> $GITHUB_ENV # Prod Role ARN
+            echo "ECS_CLUSTER=${{ env.PRD_ECS_CLUSTER }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ env.PRD_ECS_SERVICE }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ env.PRD_ROLE_ARN }}" >> $GITHUB_ENV
           else
-            echo "ENV_BUCKET=${{ env.S3_BUCKET_DEV }}" >> $GITHUB_ENV
-            echo "ROLE_ARN=${{ secrets.GITHUB_ACTIONS_DEV_ROLE_ARN }}" >> $GITHUB_ENV # Dev Role ARN
+            echo "ECS_CLUSTER=${{ env.DEV_ECS_CLUSTER }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ env.DEV_ECS_SERVICE }}" >> $GITHUB_ENV
+            echo "ROLE_ARN=${{ env.DEV_ROLE_ARN }}" >> $GITHUB_ENV
           fi
-          
-          echo "DEPLOY_BRANCH=$DEPLOY_TARGET_BRANCH" >> $GITHUB_ENV
 
+          echo "DEPLOY_BRANCH=$DEPLOY_BRANCH" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
-      # 2. 📥 Checkout repository (동적으로 결정된 브랜치 체크아웃)
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
         with:
-          # 🌟 수동 실행 시 사용자가 선택한 브랜치 코드를 가져오도록 ref를 지정
-          ref: ${{ env.DEPLOY_BRANCH }} 
+          ref: ${{ env.DEPLOY_BRANCH }}
+          fetch-depth: 0
 
-      # 3. ⚙️ Setup Node
-      - name: ⚙️ Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # 4. 📦 Install dependencies
-      - name: 📦 Install dependencies (npm ci)
-        working-directory: frontend
-        run: npm ci
-
-      # 5. 🏗️ Build frontend
-      - name: 🏗️ Build frontend (npm run build)
-        working-directory: frontend
-        run: npm run build
-
-      # 6. 🔐 Configure AWS credentials (동적 Role ARN 사용)
-      - name: 🔐 Configure AWS credentials (OIDC)
+      - name: 🔐 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # 🌟 동적으로 결정된 Role ARN 사용
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 7. 🚀 Deploy to S3 (동적으로 결정된 버킷 사용)
-      - name: 🚀 Deploy to S3
-        # dist 폴더 이름은 프로젝트 환경에 따라 변경될 수 있습니다 (build, dist 등)
-        run: aws s3 sync frontend/dist s3://${{ env.ENV_BUCKET }} --delete
+      - name: 🔑 Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🏗️ Build, Tag, Push Docker Image
+        run: |
+          IMAGE_URI="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+          docker build -t $IMAGE_URI -f examforge/Dockerfile ./examforge
+          docker push $IMAGE_URI
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      - name: 📝 Generate Fargate Task Definition with ALB Health Check
+        run: |
+          cat > task-definition.json <<EOF
+          {
+            "family": "${{ env.ECS_CLUSTER }}-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512",
+            "executionRoleArn": "arn:aws:iam::140023399909:role/examforge-dev-ecs-exec-role",
+            "taskRoleArn": "arn:aws:iam::140023399909:role/dev-ecs-task-role",
+            "containerDefinitions": [
+              {
+                "name": "app-container",
+                "image": "${{ env.IMAGE_URI }}",
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 3000,
+                    "hostPort": 3000,
+                    "protocol": "tcp"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/${{ env.ECS_CLUSTER }}",
+                    "awslogs-region": "${{ env.AWS_REGION }}",
+                    "awslogs-stream-prefix": "ecs",
+                    "awslogs-create-group": "true"
+                  }
+                },
+                "healthCheck": {
+                  "command": ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"],
+                  "interval": 30,
+                  "timeout": 5,
+                  "retries": 3,
+                  "startPeriod": 60
+                },
+                "environment": [
+                  {
+                    "name": "ENV",
+                    "value": "${{ env.DEPLOY_BRANCH }}"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: 🚀 Deploy to ECS Fargate
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: task-definition.json
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
