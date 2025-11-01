@@ -12,8 +12,9 @@ mkdir -p $APACHE_LOG_DIR /var/run/httpd /var/lock/httpd
 sed -i 's/Listen 80/Listen 3000/' /etc/httpd/conf/httpd.conf
 sed -i 's/<VirtualHost \*:80>/<VirtualHost *:3000>/' /etc/httpd/conf.d/*.conf
 
-# /app 컨텐츠를 Apache 루트로 복사
-cp -r ./* /var/www/html/
+# DocumentRoot를 examforge 폴더로 변경
+sed -i 's#DocumentRoot "/var/www/html"#DocumentRoot "/examforge"#' /etc/httpd/conf/httpd.conf
+sed -i 's#<Directory "/var/www/html">#<Directory "/examforge">#' /etc/httpd/conf/httpd.conf
 
 # Apache 시작 (포그라운드 실행)
 /usr/sbin/httpd -D FOREGROUND
