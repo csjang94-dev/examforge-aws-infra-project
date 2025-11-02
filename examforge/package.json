@@ -1,4 +1,10 @@
 {
+  "name": "examforge",
+  "version": "1.0.0",
+  "main": "login_server.js",
+  "scripts": {
+    "start": "node login_server.js"
+  },
   "dependencies": {
     "aws-sdk": "^2.1692.0",
     "bcrypt": "^6.0.0",
