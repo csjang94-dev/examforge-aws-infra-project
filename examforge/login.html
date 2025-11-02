@@ -3,59 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <title>로그인 / 회원가입</title>
-    <link rel="stylesheet" href="index.css">
-    <link rel="stylesheet" href="login.css"> </head>
+    <link rel="stylesheet" href="login.css">
+</head>
 <body>
 
-<nav>
-    <div class="logo">
-        <a href="index.html" style="text-decoration: none; color: inherit;">AWS 문제풀이</a>
-    </div>
-    <ul>
-        <li><a href="exam.html">기출문제</a></li>
-        <li><a href="flashcard.html">개념확인</a></li>
-        <li><a href="https://aws.amazon.com/ko/certification/certification-prep/testing/">시험예약</a></li>
-        <li><a href="discount.html">할인</a></li>
-        <li><a href="support.html">고객센터</a></li>
-        <li><a href="login.html">로그인</a></li>
-    </ul>
-</nav>
-
-<main class="auth-container">
-    
-    <div id="login-form" class="form-card">
+<div class="container">
+    <div id="login-form">
         <h2>로그인</h2>
-        <form onsubmit="login(event)">
-            <label for="login-email">이메일:</label>
-            <input type="email" id="login-email" required>
-            
-            <label for="login-password">비밀번호:</label>
-            <input type="password" id="login-password" required>
-            
+        <form onsubmit="login(event)"> 
+            <input type="email" id="login-email" placeholder="이메일" required> 
+            <input type="password" id="login-password" placeholder="비밀번호" required>
             <button type="submit">로그인</button>
         </form>
-        <p>계정이 없으신가요? <a href="#" onclick="showSignup()">회원가입</a></p>
+        <div class="link">
+            계정이 없으신가요? <a onclick="showSignup()">회원가입</a>
+        </div>
     </div>
 
-    <div id="signup-form" class="form-card" style="display: none;">
+    <div id="signup-form" style="display: none;">
         <h2>회원가입</h2>
         <form onsubmit="signup(event)">
-            <label for="signup-name">이름:</label>
-            <input type="text" id="signup-name" required>
-            
-            <label for="signup-email">이메일:</label>
-            <input type="email" id="signup-email" required>
-            
-            <label for="signup-password">비밀번호:</label>
-            <input type="password" id="signup-password" required>
-            
-            <button type="submit">회원가입</button>
+            <input type="text" id="signup-name" placeholder="이름" required> 
+            <input type="email" id="signup-email" placeholder="이메일" required>
+            <input type="password" id="signup-password" placeholder="비밀번호" required>
+            <button type="submit">가입하기</button>
         </form>
-        <p>이미 계정이 있으신가요? <a href="#" onclick="showLogin()">로그인</a></p>
+        <div class="link">
+            이미 계정이 있으신가요? <a onclick="showLogin()">로그인</a>
+        </div>
     </div>
+</div>
 
-</main>
+<script src="login.js"></script> 
 
-<script src="login.js"></script>
 </body>
 </html>
