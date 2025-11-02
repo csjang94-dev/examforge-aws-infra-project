@@ -1,6 +1,8 @@
-# 1. ECS 클러스터 생성 (환경별 격리)
+data "aws_region" "current" {}
+
+# 1. ECS 클러스터 생성
 resource "aws_ecs_cluster" "main" {
-  name = "${var.environment}-cluster"
+  name = "${var.app_name}-${var.environment}-cluster"
   tags = {
     Environment = var.environment
   }
@@ -8,7 +10,7 @@ resource "aws_ecs_cluster" "main" {
 
 # 2. ECR Repository 생성 (Docker 이미지 저장소)
 resource "aws_ecr_repository" "app_repo" {
-  name                 = "${var.environment}/app-repo"
+  name                 = "${var.app_name}/${var.environment}-repo"
   image_tag_mutability = "MUTABLE"
 
   tags = {
@@ -16,17 +18,21 @@ resource "aws_ecr_repository" "app_repo" {
   }
 }
 
-# modules/ecs-cluster/main.tf 파일에 추가
+# 3. CloudWatch Log Group
+resource "aws_cloudwatch_log_group" "ecs_logs" {
+  name              = "/ecs/${var.app_name}-${var.environment}"
+  retention_in_days = 7
+  tags = {
+    Environment = var.environment
+  }
+}
 
-# ----------------------------------------------------
-# 1. ALB용 보안 그룹 (외부 트래픽 허용)
-# ----------------------------------------------------
+# 4. ALB용 보안 그룹
 resource "aws_security_group" "alb" {
-  name        = "${var.environment}-alb-sg"
+  name        = "${var.app_name}-${var.environment}-alb-sg"
   description = "Allows HTTP/HTTPS traffic to the ALB"
-  vpc_id      = var.vpc_id # VPC ID는 main.tf에서 변수로 전달받음
+  vpc_id      = var.vpc_id
 
-  # Ingress (인바운드): HTTP 및 HTTPS 트래픽 허용
   ingress {
     description = "HTTP access from anywhere"
     from_port   = 80
@@ -34,7 +40,6 @@ resource "aws_security_group" "alb" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   ingress {
     description = "HTTPS access from anywhere"
     from_port   = 443
@@ -42,84 +47,66 @@ resource "aws_security_group" "alb" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  # Egress (아웃바운드): 모든 외부 통신 허용 (NAT GW를 통해 나감)
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   tags = {
-    Name        = "${var.environment}-alb-sg"
+    Name        = "${var.app_name}-${var.environment}-alb-sg"
     Environment = var.environment
   }
 }
 
-# ----------------------------------------------------
-# 2. ECS Service (Fargate Task)용 보안 그룹 (ALB 트래픽만 허용)
-# ----------------------------------------------------
+# 5. ECS Service (Fargate Task)용 보안 그룹
 resource "aws_security_group" "ecs_service" {
-  name        = "${var.environment}-ecs-sg"
+  name        = "${var.app_name}-${var.environment}-ecs-sg"
   description = "Allows traffic only from ALB to ECS Tasks"
   vpc_id      = var.vpc_id
 
-  # Ingress (인바운드): 해당 환경의 ALB (보안 그룹)에서 오는 트래픽만 80번 포트로 허용
   ingress {
     description     = "Access from ALB"
-    from_port       = 80
-    to_port         = 80
+    from_port       = var.app_port # 80이 아닌 앱 포트(e.g., 3000)
+    to_port         = var.app_port
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id] # 💡 ALB의 SG ID 참조
+    security_groups = [aws_security_group.alb.id]
   }
-
-  # Egress (아웃바운드): 모든 외부 통신 허용 (DB 접근 및 외부 API 호출용)
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
   tags = {
-    Name        = "${var.environment}-ecs-sg"
+    Name        = "${var.app_name}-${var.environment}-ecs-sg"
     Environment = var.environment
   }
 }
 
-
-# 3. Application Load Balancer (ALB)
+# 6. Application Load Balancer (ALB)
 resource "aws_lb" "main" {
-  name               = "${var.environment}-alb"
+  name               = "${var.app_name}-${var.environment}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnet_ids # Public Subnet에 배치
+  subnets            = var.public_subnet_ids
 
   tags = {
     Environment = var.environment
   }
 }
 
-# modules/ecs-cluster/main.tf 파일에 추가
-
-# ----------------------------------------------------
-# 1. ALB Target Group (대상 그룹) 정의
-# ----------------------------------------------------
-# ECS 서비스의 컨테이너로 트래픽을 전달하고, 상태를 확인합니다.
+# 7. ALB Target Group
 resource "aws_lb_target_group" "app" {
-  name     = "${var.environment}-app-tg"
-  port     = 80 # 컨테이너가 노출하는 포트 (앱 포트)
-  protocol = "HTTP"
-  vpc_id   = var.vpc_id # 모듈로 전달받은 VPC ID
-
-  # Fargate 사용 시 필수 설정
+  name        = "${var.app_name}-${var.environment}-tg"
+  port        = var.app_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
   target_type = "ip"
-  
-  # 헬스 체크 설정
+
   health_check {
-    path                = "/" # 애플리케이션의 헬스 체크 경로 (필요 시 수정)
+    path                = "/" # 헬스 체크 경로
     protocol            = "HTTP"
     matcher             = "200"
     interval            = 30
@@ -127,26 +114,18 @@ resource "aws_lb_target_group" "app" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
   }
-
   tags = {
-    Name        = "${var.environment}-app-tg"
+    Name        = "${var.app_name}-${var.environment}-tg"
     Environment = var.environment
   }
 }
 
-# ----------------------------------------------------
-# 2. ALB Listener (수신기) 정의 - HTTPS (443)
-# ----------------------------------------------------
-# 외부 트래픽을 443 포트로 받아 Target Group으로 전달합니다.
+# 8. ALB Listener (HTTPS - 443)
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
-  
-  # 💡 ALB용 (ap-northeast-2) ARN 연결
-  certificate_arn   = var.existing_alb_certificate_arn 
-
-  # 필수 보안 정책
+  certificate_arn   = var.existing_alb_certificate_arn
   ssl_policy        = "ELBSecurityPolicy-2016-08"
 
   default_action {
@@ -155,26 +134,26 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-# ----------------------------------------------------
-# 3. ALB Listener (수신기) 정의 - HTTP to HTTPS 리다이렉트 (선택 사항)
-# ----------------------------------------------------
-# 80 포트로 들어오는 모든 HTTP 요청을 443 HTTPS로 리다이렉트합니다.
+# 9. ALB Listener (HTTP - 80) -> HTTPS 리다이렉트
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
-# 6. ECS Task Execution Role (ECS가 AWS 리소스를 관리하기 위한 권한)
+# 10. ECS Task Execution Role (ECR 접근, CloudWatch 로그 전송용)
 resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.environment}-ecs-exec-role"
+  name = "${var.app_name}-${var.environment}-ecs-exec-role"
 
-  # ECS 서비스 신뢰 정책
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
@@ -187,78 +166,42 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 }
 
-# ECS Task 실행 시 필요한 관리형 정책 연결 (ECR 접근, CloudWatch 로그 등)
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# 7. ECS Service (Fargate Task 실행 및 관리)
-resource "aws_ecs_service" "app" {
-  name            = "${var.environment}-app-service"
-  cluster         = aws_ecs_cluster.main.id
-  launch_type     = "FARGATE" # 서버 관리가 필요 없는 Fargate 사용
-  desired_count   = 2 # 최소 2개의 Task 실행 (고가용성)
-
-  # Private Subnet에서 실행되도록 네트워크 구성
-  network_configuration {
-    subnets          = var.private_subnet_ids
-    security_groups  = [aws_security_group.ecs_service.id]
-    assign_public_ip = false
-  }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.app.arn
-    container_name   = "app-container" # 컨테이너 이름 (Dockerfile에서 정의)
-    container_port   = 80 
-  }
-
-  # Task Definition (컨테이너 이미지, CPU/메모리, 환경 변수 등 상세 설정)은 
-  # 서비스 배포 시 GitHub Actions/CodeDeploy에 의해 업데이트되는 것이 일반적이므로,
-  # 여기서는 최소한의 정의만 포함하거나 별도 모듈로 분리할 수 있습니다. 
-  # (이 예시에서는 간결함을 위해 생략하고, 다음 단계에서 Task Definition을 추가합니다.)
-  
-  # ... (Task Definition 코드가 여기에 추가됩니다.)
-  
-  # 9. ECS Service에 Task Definition 연결 업데이트
-  # Task Definition ARN 연결
-  task_definition = aws_ecs_task_definition.app.arn
-}
-
-# (modules/ecs-cluster/main.tf 파일에 추가)
-
-# 8. ECS Task Definition (컨테이너 실행 명세)
+# 11. ECS Task Definition
 resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.environment}-app-task"
-  requires_compatibilities = ["FARGATE"]
+  family                   = "${var.app_name}-${var.environment}-task"
   network_mode             = "awsvpc"
-  cpu                      = 512    # CPU 유닛 (0.5 vCPU)
-  memory                   = 1024   # 메모리 (1GB)
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
 
-  # Task 실행 역할 (DynamoDB 접근 권한을 가진 역할 연결)
-  task_role_arn            = var.ecs_task_role_arn
+  # 💡 [핵심 수정] 루트 모듈에서 전달받은 Task Role ARN (DynamoDB 접근 권한 O)
+  task_role_arn = var.ecs_task_role_arn
 
-  # Task 실행 역할 (ECR 접근, 로그 전송 권한을 가진 역할 연결)
-  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn 
+  # 모듈 내에서 생성한 Execution Role ARN (ECR 접근 권한 O)
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
 
   container_definitions = jsonencode([
     {
-      name      = "app-container"
-      image     = "${var.ecr_repository_url}:latest" # ECR 리포지토리 URL
-      cpu       = 512
-      memory    = 1024
-      essential = true
+      name      = "app-container",
+      # 모듈 내에서 생성한 ECR 리포지토리 사용
+      image     = "${aws_ecr_repository.app_repo.repository_url}:${var.app_image_tag}", 
+      essential = true,
       portMappings = [
         {
-          containerPort = 80
-          hostPort      = 80
+          containerPort = var.app_port,
+          hostPort      = var.app_port
         }
-      ]
+      ],
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awslogs",
         options = {
-          "awslogs-group"         = "/ecs/${var.environment}-app"
-          "awslogs-region"        = var.aws_region
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs_logs.name,
+          "awslogs-region"        = data.aws_region.current.name,
           "awslogs-stream-prefix" = "ecs"
         }
       }
@@ -270,4 +213,31 @@ resource "aws_ecs_task_definition" "app" {
   }
 }
 
+# 12. ECS Service
+resource "aws_ecs_service" "app" {
+  name            = "${var.app_name}-${var.environment}-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.app.arn
+  launch_type     = "FARGATE"
+  desired_count   = 2 # 고가용성을 위해 최소 2개
 
+  network_configuration {
+    subnets         = var.private_subnet_ids
+    security_groups = [aws_security_group.ecs_service.id]
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app.arn
+    container_name   = "app-container"
+    container_port   = var.app_port
+  }
+
+  # Task Definition이 변경될 때 롤링 업데이트 보장
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+  
+  # 서비스가 ALB에 정상 등록될 때까지 기다림
+  depends_on = [aws_lb_listener.https]
+}

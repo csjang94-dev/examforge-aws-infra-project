@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>로그인 / 회원가입</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+
+<div class="container">
+    <div id="login-form">
+        <h2>로그인</h2>
+        <form onsubmit="login(event)"> 
+            <input type="email" id="login-email" placeholder="이메일" required> 
+            <input type="password" id="login-password" placeholder="비밀번호" required>
+            <button type="submit">로그인</button>
+        </form>
+        <div class="link">
+            계정이 없으신가요? <a onclick="showSignup()">회원가입</a>
+        </div>
+    </div>
+
+    <div id="signup-form" style="display: none;">
+        <h2>회원가입</h2>
+        <form onsubmit="signup(event)">
+            <input type="text" id="signup-name" placeholder="이름" required> 
+            <input type="email" id="signup-email" placeholder="이메일" required>
+            <input type="password" id="signup-password" placeholder="비밀번호" required>
+            <button type="submit">가입하기</button>
+        </form>
+        <div class="link">
+            이미 계정이 있으신가요? <a onclick="showLogin()">로그인</a>
+        </div>
+    </div>
+</div>
+
+<script src="login.js"></script> 
+
+</body>
+</html>
