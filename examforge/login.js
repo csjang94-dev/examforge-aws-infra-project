@@ -13,7 +13,6 @@ function showLogin() {
 async function signup(e) { 
     e.preventDefault();
 
-    // 💡 수정 1: HTML의 새로운 ID 사용
     const name = document.getElementById('signup-name').value; 
     const email = document.getElementById('signup-email').value; 
     const password = document.getElementById('signup-password').value; 
@@ -23,8 +22,9 @@ async function signup(e) {
         return; 
     } 
     
-    try { 
-        const res = await fetch('http://localhost:3000/signup', { 
+    try {
+        // ✅ 수정: 상대 경로 사용 (현재 도메인 사용)
+        const res = await fetch('/signup', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ name, email, password }) 
@@ -46,7 +46,6 @@ async function signup(e) {
 async function login(e) { 
     e.preventDefault(); 
     
-    // 💡 수정 2: HTML의 새로운 ID 사용 (email 기반 로그인)
     const email = document.getElementById('login-email').value; 
     const password = document.getElementById('login-password').value; 
     
@@ -55,11 +54,11 @@ async function login(e) {
         return; 
     } 
     
-    try { 
-        const res = await fetch('http://localhost:3000/login', { 
+    try {
+        // ✅ 수정: 상대 경로 사용 (현재 도메인 사용)
+        const res = await fetch('/login', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
-            // 💡 수정 3: name 대신 email을 서버로 전송
             body: JSON.stringify({ email, password }) 
         }); 
         
