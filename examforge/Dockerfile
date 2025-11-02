@@ -1,32 +1,31 @@
-FROM ubuntu:22.04
+# Dockerfile (Node.js/Express 서버용)
 
-ENV DEBIAN_FRONTEND=noninteractive
+# Node.js LTS 버전을 기반 이미지로 사용합니다. (가장 중요)
+FROM node:18-slim 
 
-# Apache, curl 설치
-RUN apt-get update && \
-    apt-get install -y apache2 curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# 작업 디렉토리 설정
+WORKDIR /usr/src/app
 
-# 컨텐츠 복사
-COPY . /var/www/html/
+# 1. 의존성 파일 복사 및 설치
+# 캐싱을 효율적으로 사용하기 위해 package.json과 package-lock.json만 먼저 복사합니다.
+COPY package*.json ./
 
-# Apache 포트 3000으로 변경
-RUN sed -i 's/Listen 80/Listen 3000/' /etc/apache2/ports.conf && \
-    sed -i 's/<VirtualHost \*:80>/<VirtualHost *:3000>/' /etc/apache2/sites-available/000-default.conf
+# 필요한 Node.js 모듈 설치 (npm install)
+# 이 단계가 이전 ERR_CONNECTION_REFUSED 오류를 일으킨 'dotenv' 문제를 해결합니다.
+RUN npm install
 
-# 권한 설정
-RUN chown -R www-data:www-data /var/www/html && \
-    chmod -R 755 /var/www/html
+# 2. 모든 애플리케이션 코드 복사
+COPY . .
 
-# 로그 디렉토리 생성
-RUN mkdir -p /var/log/apache2 /var/run/apache2
-
-WORKDIR /var/www/html
+# 3. Express 서버 포트를 노출합니다.
+# app.js에서 설정한 PORT=3000과 일치해야 합니다.
 EXPOSE 3000
 
+# 4. 헬스 체크 설정 (Node.js 서버에 맞게 유지)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/ || exit 1
 
-# Apache 직접 실행
-CMD ["apache2ctl", "-D", "FOREGROUND"]
+# 5. 애플리케이션 실행 명령
+# 서버 시작 파일(app.js 또는 login_server.js)을 실행합니다.
+CMD [ "node", "login_server.js" ] 
+# 파일명이 login_server.js라면 CMD [ "node", "login_server.js" ] 로 변경해야 합니다.
