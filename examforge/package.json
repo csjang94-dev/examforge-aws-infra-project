@@ -1,15 +1,21 @@
 {
-  "name": "examforge",
+  "name": "project_gakbang",
   "version": "1.0.0",
+  "description": "AWS 문제풀이 로그인 서버",
   "main": "login_server.js",
   "scripts": {
-    "start": "node login_server.js"
+    "start": "node login_server.js",
+    "dev": "nodemon login_server.js"
   },
   "dependencies": {
     "aws-sdk": "^2.1692.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "uuid": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
