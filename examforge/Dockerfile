@@ -25,4 +25,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/ || exit 1
 
 # 5. 애플리케이션 실행 명령
-CMD [ "node", "app.js" ]
+CMD [ "node", "login_server.js" ]
