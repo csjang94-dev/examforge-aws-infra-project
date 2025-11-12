@@ -2,7 +2,7 @@
 
 **프로젝트 설명:** AWS 자격증 취득 및 클라우드 기술 학습을 위한 인터랙티브 문제풀이 웹 서비스입니다. 사용자는 핵심 AWS 개념을 학습하고, 실제 시험과 유사한 환경에서 실력을 점검할 수 있습니다.
 
-**핵심 기술:** `javascript` `Node.js / Express` `python` `AWS` `Terraform` `GitHub Actions`
+**핵심 기술:** `javascript` `Node.js / Express` `python` `AWS` `Terraform` `GitHub Actions`  
 
 
 
@@ -14,7 +14,7 @@
 
 * **인프라 관리 도구:** `Terraform`
 * **클라우드 환경:** `AWS (Amazon Web Services)`
-* **주요 구성 요소:** (예시) `VPC`, `EC2 (Compute)`, `RDS (Database)`, `S3 (Storage)`
+* **주요 구성 요소:** (예시) `VPC`, `EC2 (Compute)`, `RDS (Database)`, `S3 (Storage)`  
 
 
 
@@ -31,7 +31,9 @@
 | **개발 (Dev)** | `./dev/` | 개발팀의 기능 테스트 및 검증 환경 |
 | **운영 (Prd)** | `./prd/` | 최종 사용자를 위한 안정적인 라이브 서비스 환경 |
 
-* **동작 방식:** Main 브랜치에 푸시된 변경사항은 GitHub Actions을 통해 빌드되고, 테라폼을 통해 만든 각각의 환경(Dev/Prd)에 지정된 AWS ECR Fargate를 통해 배포됩니다.
+* **동작 방식:** Main 브랜치에 푸시된 변경사항은 GitHub Actions을 통해 빌드되고, 테라폼을 통해 만든 각각의 환경(Dev/Prd)에 지정된 AWS ECR Fargate를 통해 배포됩니다.  
+
+
 
 ## 🚀 프로젝트 실행 및 확인
 
