@@ -16,6 +16,8 @@
 * **클라우드 환경:** `AWS (Amazon Web Services)`
 * **주요 구성 요소:** (예시) `VPC`, `EC2 (Compute)`, `RDS (Database)`, `S3 (Storage)`
 
+
+
   ## ⚙️ CI/CD 파이프라인 (GitHub Actions)
 
 프로젝트의 빌드 및 배포는 **GitHub Actions**를 통해 완전히 자동화되어 있습니다. **Main 브랜치**에 코드가 병합될 때마다 파이프라인이 자동으로 트리거됩니다.
