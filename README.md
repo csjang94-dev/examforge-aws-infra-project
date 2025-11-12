@@ -39,7 +39,7 @@
 
 1. 실행을 위해서는 우선적으로 테라폼 코드를 이용해 인프라를 구성해야 합니다.
 2. 인프라를 구성한 후, GitHub Actions로 배포하면 ALB의 DNS 주소를 통해 서버에 접속할 수 있습니다.
-3. <br>
+<br>
 
 <img width="600" height="450" alt="테라폼트리구조" src="https://github.com/user-attachments/assets/80b89d94-bbb0-41b1-88c4-913108f47248" />
 
